@@ -14,17 +14,25 @@ end
 -- read command line arguments
 local args = lapp [[
 Training script for sentiment classification on the SST dataset.
-  -m,--model  (default constituency) Model architecture: [constituency, lstm, bilstm]
+  -m,--model  (default constituency_lstm) Model architecture: [constituency_lstm,constituency_gru, lstm, bilstm]
   -l,--layers (default 1)            Number of layers (ignored for Tree-LSTM)
   -d,--dim    (default 150)          LSTM memory dimension
   -e,--epochs (default 10)           Number of training epochs
   -b,--binary                        Train and evaluate on binary sub-task
+  -s,--seed   (default 41)           Manual Seed
+  -b,--bias   (default 1.8)          Forget Gate bias for LSTM
 ]]
 
+torch.manualSeed(args.seed)
+
 local model_name, model_class, model_structure
-if args.model == 'constituency' then
+if args.model == 'constituency_lstm' then
   model_name = 'Constituency Tree LSTM'
   model_class = treelstm.TreeLSTMSentiment
+elseif args.model == 'constituency_gru' then
+  model_name = 'Constituency Tree GRU'
+  model_class = treelstm.TreeLSTMSentiment
+-- Dependecy branch is unchanged for the moment  
 elseif args.model == 'dependency' then
   model_name = 'Dependency Tree LSTM'
   model_class = treelstm.TreeLSTMSentiment
@@ -92,6 +100,8 @@ local model = model_class{
   fine_grained = fine_grained,
   num_layers = args.layers,
   mem_dim = args.dim,
+  seed = args.seed,
+  bias = args.bias
 }
 
 -- number of epochs to train
@@ -132,6 +142,8 @@ for i = 1, num_epochs do
       fine_grained = fine_grained,
       num_layers = args.layers,
       mem_dim = args.dim,
+      seed = args.seed,
+      bias = args.bias      
     }
     best_dev_model.params:copy(model.params)
     best_dev_model.emb.weight:copy(model.emb.weight)
@@ -170,10 +182,19 @@ while true do
 end
 
 -- write predictions to disk
-local predictions_file = torch.DiskFile(predictions_save_path, 'w')
+local predictions_file = io.open(predictions_save_path, 'w')
 print('writing predictions to ' .. predictions_save_path)
 for i = 1, test_predictions:size(1) do
-  predictions_file:writeInt(test_predictions[i])
+  local size = test_dataset.sents[i]:size()[1]
+  for j = 1, size do
+    if j == 1 then
+      line = vocab:token(test_dataset.sents[i][j])
+    else
+      line = line .. " " .. vocab:token(test_dataset.sents[i][j])
+    end
+  end
+  line = line .. "|" .. tostring(test_predictions[i]) .. "|".. test_dataset.labels[i] .. "\n"
+  predictions_file:write(line)
 end
 predictions_file:close()
 

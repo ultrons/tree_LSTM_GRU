@@ -12,10 +12,14 @@ function TreeLSTMSentiment:__init(config)
   self.emb_learning_rate = config.emb_learning_rate or 0.1
   self.batch_size        = config.batch_size        or 25
   self.reg               = config.reg               or 1e-4
-  self.structure         = config.structure         or 'constituency'
+  self.structure         = config.structure         or 'constituency_lstm'
   self.fine_grained      = (config.fine_grained == nil) and true or config.fine_grained
   self.dropout           = (config.dropout == nil) and true or config.dropout
+  self.seed              = config.seed
+  self.bias              = config.bias
 
+  -- Manually set seed
+  torch.manualSeed(self.seed)
   -- word embedding
   self.emb_dim = config.emb_vecs:size(2)
   self.emb = nn.LookupTable(config.emb_vecs:size(1), self.emb_dim)
@@ -35,12 +39,15 @@ function TreeLSTMSentiment:__init(config)
     mem_dim = self.mem_dim,
     output_module_fn = function() return self:new_sentiment_module() end,
     criterion = self.criterion,
+    bias = self.bias
   }
 
   if self.structure == 'dependency' then
     self.treelstm = treelstm.ChildSumTreeLSTM(treelstm_config)
-  elseif self.structure == 'constituency' then
+  elseif self.structure == 'constituency_lstm' then
     self.treelstm = treelstm.BinaryTreeLSTM(treelstm_config)
+  elseif self.structure == 'constituency_gru' then
+    self.treelstm = treelstm.BinaryTreeGRU(treelstm_config)
   else
     error('invalid parse tree type: ' .. self.structure)
   end
@@ -80,7 +87,14 @@ function TreeLSTMSentiment:train(dataset)
         local inputs = self.emb:forward(sent)
         local _, tree_loss = self.treelstm:forward(tree, inputs)
         loss = loss + tree_loss
-        local input_grad = self.treelstm:backward(tree, inputs, {zeros, zeros})
+        local input_grad = nil
+	if self.structure == 'constituency_gru' then
+             input_grad = self.treelstm:backward(tree, inputs, zeros)
+        elseif  self.structure == 'constituency_lstm' then
+             input_grad = self.treelstm:backward(tree, inputs, {zeros, zeros})
+        else
+            error('invalid tree type structure: ' .. self.structure)
+	end
         self.emb:backward(sent, input_grad)
       end
 
@@ -149,6 +163,9 @@ function TreeLSTMSentiment:print_config()
   printf('%-25s = %.2e\n', 'learning rate', self.learning_rate)
   printf('%-25s = %.2e\n', 'word vector learning rate', self.emb_learning_rate)
   printf('%-25s = %s\n',   'dropout', tostring(self.dropout))
+  printf('%-25s = %s\n',   'architecture', tostring(self.structure))
+  printf('%-25s = %s\n',   'Seed', tostring(self.seed))
+  printf('%-25s = %s\n',   'Bias', tostring(self.bias))
 end
 
 function TreeLSTMSentiment:save(path)
@@ -162,6 +179,8 @@ function TreeLSTMSentiment:save(path)
     mem_dim           = self.mem_dim,
     reg               = self.reg,
     structure         = self.structure,
+    seed              = self.seed,
+    bias              = self.bias,
   }
 
   torch.save(path, {
