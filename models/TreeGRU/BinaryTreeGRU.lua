@@ -100,12 +100,14 @@ function BinaryTreeGRU:forward(tree, inputs)
     tree.state = tree.leaf_module:forward(inputs[tree.leaf_idx])
   else
     self:allocate_module(tree, 'composer')
-    for _,node in ipairs(tree.composer.forwardnodes) do
+    -- Set bias
+    if self.bias ~= nil then
+      for _,node in ipairs(tree.composer.forwardnodes) do
         if node.data.annotations.name == "resetGate" then
             node.data.module.bias:fill(self.bias)
         end
+      end
     end
-
     -- get child hidden states
     local lvecs, lloss = self:forward(tree.children[1], inputs)
     local rvecs, rloss = self:forward(tree.children[2], inputs)

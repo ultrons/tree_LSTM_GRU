@@ -19,7 +19,10 @@ function TreeLSTMSentiment:__init(config)
   self.bias              = config.bias
 
   -- Manually set seed
-  torch.manualSeed(self.seed)
+  if self.seed ~= nil then
+    torch.manualSeed(self.seed)
+  end
+
   -- word embedding
   self.emb_dim = config.emb_vecs:size(2)
   self.emb = nn.LookupTable(config.emb_vecs:size(1), self.emb_dim)
@@ -39,7 +42,7 @@ function TreeLSTMSentiment:__init(config)
     mem_dim = self.mem_dim,
     output_module_fn = function() return self:new_sentiment_module() end,
     criterion = self.criterion,
-    bias = self.bias
+    bias = self.bias,
   }
 
   if self.structure == 'dependency' then
@@ -87,14 +90,16 @@ function TreeLSTMSentiment:train(dataset)
         local inputs = self.emb:forward(sent)
         local _, tree_loss = self.treelstm:forward(tree, inputs)
         loss = loss + tree_loss
+
         local input_grad = nil
-	if self.structure == 'constituency_gru' then
-             input_grad = self.treelstm:backward(tree, inputs, zeros)
+        if self.structure == 'constituency_gru' then
+          input_grad = self.treelstm:backward(tree, inputs, zeros)
         elseif  self.structure == 'constituency_lstm' then
-             input_grad = self.treelstm:backward(tree, inputs, {zeros, zeros})
+          input_grad = self.treelstm:backward(tree, inputs, {zeros, zeros})
         else
-            error('invalid tree type structure: ' .. self.structure)
-	end
+          error('invalid tree type structure: ' .. self.structure)
+        end
+
         self.emb:backward(sent, input_grad)
       end
 

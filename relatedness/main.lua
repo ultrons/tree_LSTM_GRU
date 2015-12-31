@@ -16,15 +16,35 @@ end
 -- read command line arguments
 local args = lapp [[
 Training script for semantic relatedness prediction on the SICK dataset.
-  -m,--model  (default dependency) Model architecture: [dependency, constituency, lstm, bilstm]
+  -m,--model  (default dependency_lstm) Model architecture: [dependency_lstm, dependency_gru, constituency, lstm, bilstm]
   -l,--layers (default 1)          Number of layers (ignored for Tree-LSTM)
   -d,--dim    (default 150)        LSTM memory dimension
   -e,--epochs (default 10)         Number of training epochs
+  -s,--seed   (default None)        Manual Seed
+  -x,--bias   (default None)        Forget/Reset Gate bias for LSTM/GRU
 ]]
 
+-- Manually set seed
+if args.seed ~= 'None' then
+  args.seed = tonumber(args.seed)
+  torch.manualSeed(args.seed)
+else
+  args.seed = nil
+end
+
+-- Process Bias
+if args.bias ~= 'None' then
+  args.bias = tonumber(args.bias)
+else
+  args.bias = nil
+end
+
 local model_name, model_class
-if args.model == 'dependency' then
+if args.model == 'dependency_lstm' then
   model_name = 'Dependency Tree LSTM'
+  model_class = treelstm.TreeLSTMSim
+elseif args.model == 'dependency_gru' then
+  model_name = 'Dependency Tree GRU'
   model_class = treelstm.TreeLSTMSim
 elseif args.model == 'constituency' then
   model_name = 'Constituency Tree LSTM'
@@ -88,6 +108,8 @@ local model = model_class{
   structure  = model_structure,
   num_layers = args.layers,
   mem_dim    = args.dim,
+  seed = args.seed,
+  bias = args.bias,  
 }
 
 -- number of epochs to train
@@ -127,6 +149,8 @@ for i = 1, num_epochs do
       structure = model_structure,
       num_layers = args.layers,
       mem_dim    = args.dim,
+      seed = args.seed,
+      bias = args.bias,
     }
     best_dev_model.params:copy(model.params)
   end

@@ -19,11 +19,24 @@ Training script for sentiment classification on the SST dataset.
   -d,--dim    (default 150)          LSTM memory dimension
   -e,--epochs (default 10)           Number of training epochs
   -b,--binary                        Train and evaluate on binary sub-task
-  -s,--seed   (default 41)           Manual Seed
-  -b,--bias   (default 1.8)          Forget Gate bias for LSTM
+  -s,--seed   (default None)          Manual Seed
+  -x,--bias   (default None)          Forget/Reset Gate bias for LSTM/GRU
 ]]
 
-torch.manualSeed(args.seed)
+-- Manually set seed
+if args.seed ~= 'None' then
+  args.seed = tonumber(args.seed)
+  torch.manualSeed(args.seed)
+else
+  args.seed = nil  
+end
+
+-- Process Bias
+if args.bias ~= 'None' then
+  args.bias = tonumber(args.bias)
+else
+  args.bias = nil
+end
 
 local model_name, model_class, model_structure
 if args.model == 'constituency_lstm' then
@@ -32,7 +45,6 @@ if args.model == 'constituency_lstm' then
 elseif args.model == 'constituency_gru' then
   model_name = 'Constituency Tree GRU'
   model_class = treelstm.TreeLSTMSentiment
--- Dependecy branch is unchanged for the moment  
 elseif args.model == 'dependency' then
   model_name = 'Dependency Tree LSTM'
   model_class = treelstm.TreeLSTMSentiment
@@ -101,7 +113,7 @@ local model = model_class{
   num_layers = args.layers,
   mem_dim = args.dim,
   seed = args.seed,
-  bias = args.bias
+  bias = args.bias,
 }
 
 -- number of epochs to train
@@ -143,7 +155,7 @@ for i = 1, num_epochs do
       num_layers = args.layers,
       mem_dim = args.dim,
       seed = args.seed,
-      bias = args.bias      
+      bias = args.bias,
     }
     best_dev_model.params:copy(model.params)
     best_dev_model.emb.weight:copy(model.emb.weight)

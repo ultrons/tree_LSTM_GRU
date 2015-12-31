@@ -14,6 +14,13 @@ function TreeLSTMSim:__init(config)
   self.reg           = config.reg           or 1e-4
   self.structure     = config.structure     or 'dependency' -- {dependency, constituency}
   self.sim_nhidden   = config.sim_nhidden   or 50
+  self.seed          = config.seed
+  self.bias          = config.bias  
+
+  -- Manually set seed
+  if self.seed ~= nil then
+    torch.manualSeed(self.seed)
+  end
 
   -- word embedding
   self.emb_dim = config.emb_vecs:size(2)
@@ -34,10 +41,13 @@ function TreeLSTMSim:__init(config)
     in_dim = self.emb_dim,
     mem_dim = self.mem_dim,
     gate_output = false,
+    bias = self.bias,
   }
   
-  if self.structure == 'dependency' then
+  if self.structure == 'dependency_lstm' then
     self.treelstm = treelstm.ChildSumTreeLSTM(treelstm_config)
+  elseif self.structure == 'dependency_gru' then
+    self.treelstm = treelstm.ChildSumTreeGRU(treelstm_config)
   elseif self.structure == 'constituency' then
     self.treelstm = treelstm.BinaryTreeLSTM(treelstm_config)
   else
@@ -105,8 +115,17 @@ function TreeLSTMSim:train(dataset)
         local rinputs = self.emb:forward(rsent)
 
         -- get sentence representations
-        local lrep = self.treelstm:forward(ltree, linputs)[2]
-        local rrep = self.treelstm:forward(rtree, rinputs)[2]
+        local lrep = nil
+        local rrep = nil
+        if self.structure == 'dependency_lstm' then
+          lrep = self.treelstm:forward(ltree, linputs)[2]
+          rrep = self.treelstm:forward(rtree, rinputs)[2]
+        elseif self.structure == 'dependency_gru' then
+          lrep = self.treelstm:forward(ltree, linputs)
+          rrep = self.treelstm:forward(rtree, rinputs)
+        else
+          error('Invalid tree type: ' .. self.structure)
+        end
 
         -- compute relatedness
         local output = self.sim_module:forward{lrep, rrep}
@@ -116,8 +135,17 @@ function TreeLSTMSim:train(dataset)
         loss = loss + example_loss
         local sim_grad = self.criterion:backward(output, targets[j])
         local rep_grad = self.sim_module:backward({lrep, rrep}, sim_grad)
-        local linput_grads = self.treelstm:backward(dataset.ltrees[idx], linputs, {zeros, rep_grad[1]})
-        local rinput_grads = self.treelstm:backward(dataset.rtrees[idx], rinputs, {zeros, rep_grad[2]})
+        local linput_grads = nil
+        local rinput_grads = nil
+        if self.structure == 'dependency_lstm' then
+          linput_grads = self.treelstm:backward(dataset.ltrees[idx], linputs, {zeros, rep_grad[1]})
+          rinput_grads = self.treelstm:backward(dataset.rtrees[idx], rinputs, {zeros, rep_grad[2]})
+        elseif self.structure == 'dependency_gru' then
+          linput_grads = self.treelstm:backward(dataset.ltrees[idx], linputs, rep_grad[1])
+          rinput_grads = self.treelstm:backward(dataset.rtrees[idx], rinputs, rep_grad[2])
+        else
+          error('Invalid tree type: ' .. self.structure)
+        end
         self.emb:backward(lsent, linput_grads)
         self.emb:backward(rsent, rinput_grads)
       end
@@ -141,9 +169,25 @@ end
 -- Predict the similarity of a sentence pair.
 function TreeLSTMSim:predict(ltree, rtree, lsent, rsent)
   local linputs = self.emb:forward(lsent)
-  local lrep = self.treelstm:forward(ltree, linputs)[2]
+  local lrep = nil
+  if self.structure == 'dependency_lstm' then
+    lrep = self.treelstm:forward(ltree, linputs)[2]
+  elseif self.structure == 'dependency_gru' then
+    lrep = self.treelstm:forward(ltree, linputs)
+  else
+    error('Invalid tree type: ' .. self.structure)
+  end
+
   local rinputs = self.emb:forward(rsent)
-  local rrep = self.treelstm:forward(rtree, rinputs)[2]
+  local rrep = nil
+  if self.structure == 'dependency_lstm' then
+    rrep = self.treelstm:forward(rtree, rinputs)[2]
+  elseif self.structure == 'dependency_gru' then
+    rrep = self.treelstm:forward(rtree, rinputs)
+  else
+    error('Invalid tree type: ' .. self.structure)
+  end
+
   local output = self.sim_module:forward{lrep, rrep}
   self.treelstm:clean(ltree)
   self.treelstm:clean(rtree)
@@ -176,6 +220,8 @@ function TreeLSTMSim:print_config()
   printf('%-25s = %.2e\n', 'word vector learning rate', self.emb_learning_rate)
   printf('%-25s = %s\n',   'parse tree type', self.structure)
   printf('%-25s = %d\n',   'sim module hidden dim', self.sim_nhidden)
+  printf('%-25s = %s\n',   'Seed', tostring(self.seed))
+  printf('%-25s = %s\n',   'Bias', tostring(self.bias))  
 end
 
 --
