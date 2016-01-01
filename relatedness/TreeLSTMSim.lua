@@ -12,7 +12,7 @@ function TreeLSTMSim:__init(config)
   self.emb_learning_rate = config.emb_learning_rate or 0.0
   self.batch_size    = config.batch_size    or 25
   self.reg           = config.reg           or 1e-4
-  self.structure     = config.structure     or 'dependency' -- {dependency, constituency}
+  self.structure     = config.structure     or 'dependency_lstm'
   self.sim_nhidden   = config.sim_nhidden   or 50
   self.seed          = config.seed
   self.bias          = config.bias  

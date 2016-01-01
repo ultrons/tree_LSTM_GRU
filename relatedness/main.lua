@@ -20,8 +20,8 @@ Training script for semantic relatedness prediction on the SICK dataset.
   -l,--layers (default 1)          Number of layers (ignored for Tree-LSTM)
   -d,--dim    (default 150)        LSTM memory dimension
   -e,--epochs (default 10)         Number of training epochs
-  -s,--seed   (default None)        Manual Seed
-  -x,--bias   (default None)        Forget/Reset Gate bias for LSTM/GRU
+  -s,--seed   (default None)       Manual Seed
+  -x,--bias   (default None)       Forget/Reset Gate bias for LSTM/GRU
 ]]
 
 -- Manually set seed

@@ -26,6 +26,9 @@ function BinaryTreeLSTM:__init(config)
   -- output module
   self.output_module = self:new_output_module()
   self.output_modules = {}
+
+  -- bias for forget gate
+  self.bias = config.bias
 end
 
 function BinaryTreeLSTM:new_leaf_module()
@@ -56,11 +59,18 @@ function BinaryTreeLSTM:new_composer()
     }
   end
 
-  local i = nn.Sigmoid()(new_gate())    -- input gate
-  local lf = nn.Sigmoid()(new_gate())   -- left forget gate
-  local rf = nn.Sigmoid()(new_gate())   -- right forget gate
-  local update = nn.Tanh()(new_gate())  -- memory cell update vector
-  local c = nn.CAddTable(){             -- memory cell
+  local new_gate_f = function()
+    return nn.CAddTable(){
+      nn.Linear(self.mem_dim, self.mem_dim)(lh):annotate{name = 'forgetGate'},
+      nn.Linear(self.mem_dim, self.mem_dim)(rh):annotate{name = 'forgetGate'} 
+    }
+  end
+
+  local i = nn.Sigmoid()(new_gate())      -- input gate
+  local lf = nn.Sigmoid()(new_gate_f())   -- left forget gate
+  local rf = nn.Sigmoid()(new_gate_f())   -- right forget gate
+  local update = nn.Tanh()(new_gate())    -- memory cell update vector
+  local c = nn.CAddTable(){               -- memory cell
       nn.CMulTable(){i, update},
       nn.CMulTable(){lf, lc},
       nn.CMulTable(){rf, rc}
@@ -99,7 +109,14 @@ function BinaryTreeLSTM:forward(tree, inputs)
     tree.state = tree.leaf_module:forward(inputs[tree.leaf_idx])
   else
     self:allocate_module(tree, 'composer')
-
+    -- Set bias
+    if self.bias ~= nil then
+      for _,node in ipairs(tree.composer.forwardnodes) do
+          if node.data.annotations.name == "forgetGate" then
+              node.data.module.bias:fill(self.bias)
+          end
+      end
+    end
     -- get child hidden states
     local lvecs, lloss = self:forward(tree.children[1], inputs)
     local rvecs, rloss = self:forward(tree.children[2], inputs)

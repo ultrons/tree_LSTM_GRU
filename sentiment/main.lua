@@ -19,8 +19,8 @@ Training script for sentiment classification on the SST dataset.
   -d,--dim    (default 150)          LSTM memory dimension
   -e,--epochs (default 10)           Number of training epochs
   -b,--binary                        Train and evaluate on binary sub-task
-  -s,--seed   (default None)          Manual Seed
-  -x,--bias   (default None)          Forget/Reset Gate bias for LSTM/GRU
+  -s,--seed   (default None)         Manual Seed
+  -x,--bias   (default None)         Forget/Reset Gate bias for LSTM/GRU
 ]]
 
 -- Manually set seed

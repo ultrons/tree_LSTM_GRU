@@ -1,6 +1,6 @@
 --[[
 
-  A Child-Sum Tree-LSTM with input at each node.
+  A Child-Sum Tree-GRU with input at each node.
 
 --]]
 
