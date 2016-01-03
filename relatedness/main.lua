@@ -187,11 +187,26 @@ while true do
   file_idx = file_idx + 1
 end
 
+-- Get sentence representation
+function getSent(sent, vocab)
+  for j = 1, sent:size()[1] do
+    if j == 1 then
+      line = vocab:token(sent[j])
+    else
+      line = line .. " " .. vocab:token(sent[j])
+    end
+  end
+  return line
+end
+
 -- write predictions to disk
-local predictions_file = torch.DiskFile(predictions_save_path, 'w')
+local predictions_file = io.open(predictions_save_path, 'w')
 print('writing predictions to ' .. predictions_save_path)
 for i = 1, test_predictions:size(1) do
-  predictions_file:writeFloat(test_predictions[i])
+  l = getSent(test_dataset.lsents[i], vocab)
+  r = getSent(test_dataset.rsents[i], vocab)
+  line = l .. "\t" .. r .. "\t".. tostring(test_dataset.labels[i]) .. "\t" .. tostring(test_predictions[i]) .. "\n"
+  predictions_file:write(line)
 end
 predictions_file:close()
 

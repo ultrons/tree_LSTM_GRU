@@ -238,6 +238,8 @@ function TreeLSTMSim:save(path)
     sim_nhidden   = self.sim_nhidden,
     reg           = self.reg,
     structure     = self.structure,
+    seed          = self.seed,
+    bias          = self.bias,    
   }
 
   torch.save(path, {

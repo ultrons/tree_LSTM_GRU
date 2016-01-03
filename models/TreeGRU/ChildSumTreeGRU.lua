@@ -22,6 +22,9 @@ function ChildSumTreeGRU:__init(config)
   -- output module
   self.output_module = self:new_output_module()
   self.output_modules = {}
+
+  -- bias for forget gate
+  self.bias = config.bias
 end
 
 function ChildSumTreeGRU:new_composer()

@@ -22,6 +22,9 @@ function ChildSumTreeLSTM:__init(config)
   -- output module
   self.output_module = self:new_output_module()
   self.output_modules = {}
+
+  -- bias for forget gate
+  self.bias = config.bias  
 end
 
 function ChildSumTreeLSTM:new_composer()
@@ -37,8 +40,8 @@ function ChildSumTreeLSTM:new_composer()
     })
   local f = nn.Sigmoid()(
     treelstm.CRowAddTable(){
-      nn.TemporalConvolution(self.mem_dim, self.mem_dim, 1)(child_h),
-      nn.Linear(self.in_dim, self.mem_dim)(input),
+      nn.TemporalConvolution(self.mem_dim, self.mem_dim, 1)(child_h):annotate{name = 'forgetGate'},
+      nn.Linear(self.in_dim, self.mem_dim)(input):annotate{name = 'forgetGate'},
     })
   local update = nn.Tanh()(
     nn.CAddTable(){
@@ -86,6 +89,14 @@ function ChildSumTreeLSTM:forward(tree, inputs)
   end
   local child_c, child_h = self:get_child_states(tree)
   self:allocate_module(tree, 'composer')
+  -- Set bias
+  if self.bias ~= nil then
+    for _,node in ipairs(tree.composer.forwardnodes) do
+      if node.data.annotations.name == "forgetGate" then
+          node.data.module.bias:fill(self.bias)
+      end
+    end
+  end  
   tree.state = tree.composer:forward{inputs[tree.idx], child_c, child_h}
 
   if self.output_module ~= nil then
