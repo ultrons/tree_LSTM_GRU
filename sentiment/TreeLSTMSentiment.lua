@@ -45,14 +45,16 @@ function TreeLSTMSentiment:__init(config)
     bias = self.bias,
   }
 
-  if self.structure == 'dependency' then
+  if self.structure == 'dependency_lstm' then
     self.treelstm = treelstm.ChildSumTreeLSTM(treelstm_config)
+  elseif self.structure == 'dependency_gru' then
+    self.treelstm = treelstm.ChildSumTreeGRU(treelstm_config)    
   elseif self.structure == 'constituency_lstm' then
     self.treelstm = treelstm.BinaryTreeLSTM(treelstm_config)
   elseif self.structure == 'constituency_gru' then
     self.treelstm = treelstm.BinaryTreeGRU(treelstm_config)
   else
-    error('invalid parse tree type: ' .. self.structure)
+    error('Invalid tree type: ' .. self.structure)
   end
 
   self.params, self.grad_params = self.treelstm:getParameters()
@@ -92,12 +94,12 @@ function TreeLSTMSentiment:train(dataset)
         loss = loss + tree_loss
 
         local input_grad = nil
-        if self.structure == 'constituency_gru' then
+        if self.structure == 'constituency_gru' or self.structure == 'dependency_gru' then
           input_grad = self.treelstm:backward(tree, inputs, zeros)
-        elseif  self.structure == 'constituency_lstm' then
+        elseif self.structure == 'constituency_lstm' or self.structure == 'dependency_lstm' then
           input_grad = self.treelstm:backward(tree, inputs, {zeros, zeros})
         else
-          error('invalid tree type structure: ' .. self.structure)
+          error('Invalid tree type: ' .. self.structure)
         end
 
         self.emb:backward(sent, input_grad)

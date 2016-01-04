@@ -13,10 +13,60 @@ function pearson(x, y)
   return x:dot(y) / (x:norm() * y:norm())
 end
 
+-- Spearman correlation coefficient
+-- Taken from https://github.com/attractivechaos/klib/blob/master/lua/klib.lua
+function spearman(x, y)
+  local function aux_func(t) -- auxiliary function
+    return (t == 1 and 0) or (t*t - 1) * t / 12
+  end
+  -- Scale back predicitons to same scale as gold labels
+  y = y / 0.25
+  y = y + 1  
+
+  local a = {}
+  for i = 1, x:size(1) do
+    a[i] = {x[i], y[i]}
+  end
+
+  for _, v in pairs(a) do v.r = {} end
+  local T, S = {}, {}
+  -- compute the rank
+  for k = 1, 2 do
+    table.sort(a, function(u,v) return u[k]<v[k] end)
+    local same = 1
+    T[k] = 0
+    for i = 2, #a + 1 do
+      if i <= #a and a[i-1][k] == a[i][k] then same = same + 1
+      else
+        local rank = (i-1) * 2 - same + 1
+        for j = i - same, i - 1 do a[j].r[k] = rank end
+        if same > 1 then T[k], same = T[k] + aux_func(same), 1 end
+      end
+    end
+    S[k] = aux_func(#a) - T[k]
+  end
+  -- compute the coefficient
+  local sum = 0
+  for _, v in pairs(a) do -- TODO: use nested loops to reduce loss of precision
+    local t = (v.r[1] - v.r[2]) / 2
+    sum = sum + t * t
+  end
+  return (S[1] + S[2] - sum) / 2 / math.sqrt(S[1] * S[2])
+end
+
+-- MSE
+function mse(x, y)
+  -- Scale back predicitons to same scale as gold labels
+  y = y / 0.25
+  y = y + 1
+  local sqDiff = torch.pow(x - y, 2)
+  return sqDiff:sum() / sqDiff:size(1)
+end
+
 -- read command line arguments
 local args = lapp [[
 Training script for semantic relatedness prediction on the SICK dataset.
-  -m,--model  (default dependency_lstm) Model architecture: [dependency_lstm, dependency_gru, constituency, lstm, bilstm]
+  -m,--model  (default dependency_lstm) Model architecture: [dependency_lstm, dependency_gru, constituency_lstm, constituency_gru, lstm, bilstm]
   -l,--layers (default 1)          Number of layers (ignored for Tree-LSTM)
   -d,--dim    (default 150)        LSTM memory dimension
   -e,--epochs (default 10)         Number of training epochs
@@ -46,9 +96,12 @@ if args.model == 'dependency_lstm' then
 elseif args.model == 'dependency_gru' then
   model_name = 'Dependency Tree GRU'
   model_class = treelstm.TreeLSTMSim
-elseif args.model == 'constituency' then
+elseif args.model == 'constituency_lstm' then
   model_name = 'Constituency Tree LSTM'
   model_class = treelstm.TreeLSTMSim
+elseif args.model == 'constituency_gru' then
+  model_name = 'Constituency Tree GRU'
+  model_class = treelstm.TreeLSTMSim  
 elseif args.model == 'lstm' then
   model_name = 'LSTM'
   model_class = treelstm.LSTMSim
@@ -94,7 +147,7 @@ print('loading datasets')
 local train_dir = data_dir .. 'train/'
 local dev_dir = data_dir .. 'dev/'
 local test_dir = data_dir .. 'test/'
-local constituency = (args.model == 'constituency')
+local constituency = (args.model == 'constituency_lstm' or args.model == 'constituency_gru')
 local train_dataset = treelstm.read_relatedness_dataset(train_dir, vocab, constituency)
 local dev_dataset = treelstm.read_relatedness_dataset(dev_dir, vocab, constituency)
 local test_dataset = treelstm.read_relatedness_dataset(test_dir, vocab, constituency)
@@ -162,7 +215,11 @@ header('Evaluating on test set')
 printf('-- using model with dev score = %.4f\n', best_dev_score)
 local test_predictions = best_dev_model:predict_dataset(test_dataset)
 local test_score = pearson(test_predictions, test_dataset.labels)
-printf('-- test score: %.4f\n', test_score)
+printf('-- Pearson test score: %.4f\n', test_score)
+test_score = spearman(test_predictions, test_dataset.labels)
+printf('-- Spearman test score: %.4f\n', test_score)
+test_score = mse(test_predictions, test_dataset.labels)
+printf('-- MSE score: %.4f\n', test_score)
 
 -- create predictions and model directories if necessary
 if lfs.attributes(treelstm.predictions_dir) == nil then

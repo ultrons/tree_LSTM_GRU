@@ -48,8 +48,10 @@ function TreeLSTMSim:__init(config)
     self.treelstm = treelstm.ChildSumTreeLSTM(treelstm_config)
   elseif self.structure == 'dependency_gru' then
     self.treelstm = treelstm.ChildSumTreeGRU(treelstm_config)
-  elseif self.structure == 'constituency' then
+  elseif self.structure == 'constituency_lstm' then
     self.treelstm = treelstm.BinaryTreeLSTM(treelstm_config)
+  elseif self.structure == 'constituency_gru' then
+    self.treelstm = treelstm.BinaryTreeGRU(treelstm_config)    
   else
     error('invalid parse tree type: ' .. self.structure)
   end
@@ -117,10 +119,10 @@ function TreeLSTMSim:train(dataset)
         -- get sentence representations
         local lrep = nil
         local rrep = nil
-        if self.structure == 'dependency_lstm' then
+        if self.structure == 'dependency_lstm' or self.structure == 'constituency_lstm' then
           lrep = self.treelstm:forward(ltree, linputs)[2]
           rrep = self.treelstm:forward(rtree, rinputs)[2]
-        elseif self.structure == 'dependency_gru' then
+        elseif self.structure == 'dependency_gru' or self.structure == 'constituency_gru' then
           lrep = self.treelstm:forward(ltree, linputs)
           rrep = self.treelstm:forward(rtree, rinputs)
         else
@@ -137,10 +139,10 @@ function TreeLSTMSim:train(dataset)
         local rep_grad = self.sim_module:backward({lrep, rrep}, sim_grad)
         local linput_grads = nil
         local rinput_grads = nil
-        if self.structure == 'dependency_lstm' then
+        if self.structure == 'dependency_lstm' or self.structure == 'constituency_lstm' then
           linput_grads = self.treelstm:backward(dataset.ltrees[idx], linputs, {zeros, rep_grad[1]})
           rinput_grads = self.treelstm:backward(dataset.rtrees[idx], rinputs, {zeros, rep_grad[2]})
-        elseif self.structure == 'dependency_gru' then
+        elseif self.structure == 'dependency_gru' or self.structure == 'constituency_gru' then
           linput_grads = self.treelstm:backward(dataset.ltrees[idx], linputs, rep_grad[1])
           rinput_grads = self.treelstm:backward(dataset.rtrees[idx], rinputs, rep_grad[2])
         else
@@ -170,9 +172,9 @@ end
 function TreeLSTMSim:predict(ltree, rtree, lsent, rsent)
   local linputs = self.emb:forward(lsent)
   local lrep = nil
-  if self.structure == 'dependency_lstm' then
+  if self.structure == 'dependency_lstm' or self.structure == 'constituency_lstm' then
     lrep = self.treelstm:forward(ltree, linputs)[2]
-  elseif self.structure == 'dependency_gru' then
+  elseif self.structure == 'dependency_gru' or self.structure == 'constituency_gru' then
     lrep = self.treelstm:forward(ltree, linputs)
   else
     error('Invalid tree type: ' .. self.structure)
@@ -180,9 +182,9 @@ function TreeLSTMSim:predict(ltree, rtree, lsent, rsent)
 
   local rinputs = self.emb:forward(rsent)
   local rrep = nil
-  if self.structure == 'dependency_lstm' then
+  if self.structure == 'dependency_lstm' or self.structure == 'constituency_lstm' then
     rrep = self.treelstm:forward(rtree, rinputs)[2]
-  elseif self.structure == 'dependency_gru' then
+  elseif self.structure == 'dependency_gru' or self.structure == 'constituency_gru' then
     rrep = self.treelstm:forward(rtree, rinputs)
   else
     error('Invalid tree type: ' .. self.structure)

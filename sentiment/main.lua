@@ -14,7 +14,7 @@ end
 -- read command line arguments
 local args = lapp [[
 Training script for sentiment classification on the SST dataset.
-  -m,--model  (default constituency_lstm) Model architecture: [constituency_lstm,constituency_gru, lstm, bilstm]
+  -m,--model  (default constituency_lstm) Model architecture: [constituency_lstm,constituency_gru, dependency_lstm, dependency_gru, lstm, bilstm]
   -l,--layers (default 1)            Number of layers (ignored for Tree-LSTM)
   -d,--dim    (default 150)          LSTM memory dimension
   -e,--epochs (default 10)           Number of training epochs
@@ -45,9 +45,12 @@ if args.model == 'constituency_lstm' then
 elseif args.model == 'constituency_gru' then
   model_name = 'Constituency Tree GRU'
   model_class = treelstm.TreeLSTMSentiment
-elseif args.model == 'dependency' then
+elseif args.model == 'dependency_lstm' then
   model_name = 'Dependency Tree LSTM'
   model_class = treelstm.TreeLSTMSentiment
+elseif args.model == 'dependency_gru' then
+  model_name = 'Dependency Tree GRU'
+  model_class = treelstm.TreeLSTMSentiment  
 elseif args.model == 'lstm' then
   model_name = 'LSTM'
   model_class = treelstm.LSTMSentiment
@@ -96,7 +99,7 @@ print('loading datasets')
 local train_dir = data_dir .. 'train/'
 local dev_dir = data_dir .. 'dev/'
 local test_dir = data_dir .. 'test/'
-local dependency = (args.model == 'dependency')
+local dependency = (args.model == 'dependency_lstm' or args.model == 'dependency_gru')
 local train_dataset = treelstm.read_sentiment_dataset(train_dir, vocab, fine_grained, dependency)
 local dev_dataset = treelstm.read_sentiment_dataset(dev_dir, vocab, fine_grained, dependency)
 local test_dataset = treelstm.read_sentiment_dataset(test_dir, vocab, fine_grained, dependency)
